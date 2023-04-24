@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component, ReactNode } from 'react';
 import {
   StyleSheet,
   ScrollView,
@@ -43,6 +43,8 @@ type SwipeablePanelProps = {
   barContainerStyle?: object,
   allowTouchOutside?: boolean;
   scrollViewProps?: ScrollViewProps;
+  children?: ReactNode;
+  closable?: boolean;
 };
 
 type MaybeAnimated<T> = T | Animated.Value;
@@ -58,6 +60,7 @@ type SwipeablePanelState = {
   deviceWidth: number;
   deviceHeight: number;
   panelHeight: number;
+  closable?: boolean;
 };
 
 class SwipeablePanel extends Component<SwipeablePanelProps, SwipeablePanelState> {
@@ -78,6 +81,7 @@ class SwipeablePanel extends Component<SwipeablePanelProps, SwipeablePanelState>
       deviceWidth: FULL_WIDTH,
       deviceHeight: FULL_HEIGHT,
       panelHeight: PANEL_HEIGHT,
+      closable: false
     };
 
     this.pan = new Animated.ValueXY({ x: 0, y: FULL_HEIGHT });
@@ -94,6 +98,13 @@ class SwipeablePanel extends Component<SwipeablePanelProps, SwipeablePanelState>
         this.state.pan.setValue({ x: 0, y: 0 });
       },
       onPanResponderMove: (evt, gestureState) => {
+        if (!this.props.closable && (
+              (this.state.status === 1 && this.state.pan.y._value > 0)
+                ||
+              (this.state.status === 2 && this.state.pan.y._value >= SMALL_PANEL_CONTENT_HEIGHT)
+            ))
+          return
+
         if (
           (this.state.status === 1 && Math.abs(this.state.pan.y._value) <= this.state.pan.y._offset) ||
           (this.state.status === 2 && this.state.pan.y._value > -1)
@@ -112,15 +123,15 @@ class SwipeablePanel extends Component<SwipeablePanelProps, SwipeablePanelState>
           if (this.state.status === STATUS.SMALL) this._animateTo(onlySmall ? STATUS.SMALL : STATUS.LARGE);
           else this._animateTo(STATUS.LARGE);
         } else if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          if (this.state.status === STATUS.LARGE) this._animateTo(onlyLarge ? STATUS.CLOSED : STATUS.SMALL);
-          else this._animateTo(0);
+          if (this.state.status === STATUS.LARGE) this._animateTo(onlyLarge && this.props.closable ? STATUS.CLOSED : STATUS.SMALL);
+          else this._animateTo(this.props.closable ? 0 : 1);
         } else this._animateTo(this.state.status);
       },
     });
   }
 
   componentDidMount = () => {
-    const { isActive, openLarge, onlyLarge, onlySmall } = this.props;
+    const { isActive, openLarge, onlyLarge, onlySmall, closable } = this.props;
 
     this.animatedValueY = 0;
     this.state.pan.y.addListener((value: any) => (this.animatedValueY = value.value));
@@ -191,7 +202,7 @@ class SwipeablePanel extends Component<SwipeablePanelProps, SwipeablePanelState>
       restDisplacementThreshold: 10,
       restSpeedThreshold: 10,
     }).start(() => {
-      if (newStatus === 0) {
+      if (newStatus === 0 && this.props.closable) {
         this.props.onClose();
         this.setState({
           showComponent: false,
